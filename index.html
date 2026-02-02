@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <title>2026 馬年好運占卜 - Vicky送福</title>
+    
     <meta property="og:title" content="快來試手氣！Vicky的馬年好運占卜">
     <meta property="og:description" content="點擊金色蒙奇奇，看看你馬年能抽到什麼超級好運籤！(內有可愛驚喜)">
     <meta property="og:image" content="https://twkaa-1111.github.io/CNY-Game-2026/thumbnail.jpg">
@@ -16,10 +17,11 @@
             margin: 0; padding: 0; width: 100%; height: 100%; 
             background-color: #000; overflow: hidden; 
             font-family: "Microsoft JhengHei", sans-serif;
+            /* 避免手機點擊出現高亮藍框 */
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* 修正 1：強力置中容器，解決跑版問題 */
+        /* 強力置中容器，解決跑版問題 */
         #game-container {
             position: absolute;
             top: 50%; left: 50%;
@@ -34,16 +36,21 @@
         #bg-img { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
         
-        /* 修正 3：點擊位置向右20/向下20，範圍縮小40% */
+        /* 🔧 座標精修：向左40/向上40，範圍縮小40% */
         #hotspot {
             position: absolute;
-            /* 原左 80+20=100px, 原上 150+20=170px */
-            left: 100px; top: 170px;
-            /* 原寬 290*0.6=174px, 原高 400*0.6=240px */
-            width: 175px; height: 240px;
+            /* 原始 80 - 40 = 40px */
+            left: 40px; 
+            /* 原始 150 - 40 = 110px */
+            top: 110px; 
+            /* 縮小後的寬度 (290 * 0.6) = 174px */
+            width: 175px; 
+            /* 縮小後的高度 (400 * 0.6) = 240px */
+            height: 240px;
             z-index: 100;
             cursor: pointer;
-            /* border: 1px solid red; (測試座標時可取消註解) */
+            /* 若要測試位置，可取消下行註解顯示紅框 */
+            /* border: 2px solid red; */
         }
 
         #dance-gif {
@@ -51,6 +58,7 @@
             width: 110px; height: 110px;
             display: none; z-index: 50;
             transform: translate(-50%, -100%);
+            pointer-events: none;
         }
         
         #reset-btn {
@@ -66,8 +74,7 @@
 
 <div id="game-container">
     <img id="bg-img" src="idle.gif">
-    <div id="hotspot"></div>
-    <canvas id="gameCanvas" width="450" height="800"></canvas>
+    <div id="hotspot"></div> <canvas id="gameCanvas" width="450" height="800"></canvas>
     <img id="dance-gif" src="dance_animation.gif">
     <img id="reset-btn" src="VICKY過年-17.png">
 </div>
@@ -77,14 +84,14 @@
 <audio id="sfx-reveal" src="reveal.mp3" preload="auto"></audio>
 
 <script>
-    // --- 1. 增強版：全手機適配與置中邏輯 ---
+    // --- 1. 全手機適配縮放 ---
     function fitScreen() {
         const container = document.getElementById('game-container');
         const scale = Math.min(window.innerWidth / 450, window.innerHeight / 800);
-        // 使用 translate(-50%, -50%) 確保在手機螢幕中心
         container.style.transform = `translate(-50%, -50%) scale(${scale})`;
     }
     window.addEventListener('resize', fitScreen);
+    window.addEventListener('orientationchange', () => setTimeout(fitScreen, 200));
     fitScreen();
 
     const canvas = document.getElementById('gameCanvas');
@@ -93,7 +100,11 @@
     const hotspot = document.getElementById('hotspot');
     const danceGif = document.getElementById('dance-gif');
     const resetBtn = document.getElementById('reset-btn');
-    const audios = { bgm: document.getElementById('bgm'), shake: document.getElementById('sfx-shake'), reveal: document.getElementById('sfx-reveal') };
+    const audios = { 
+        bgm: document.getElementById('bgm'), 
+        shake: document.getElementById('sfx-shake'), 
+        reveal: document.getElementById('sfx-reveal') 
+    };
 
     const BOX_TOP_PEAK = 530, BOX_BOTTOM_Y = 780, ARC_FLATNESS = 0.0008; 
     let gameState = 'idle', particles = [], zoomStep = 0, gifX = 225, gifDir = 1;
@@ -102,29 +113,24 @@
     const daisyImg = new Image(); daisyImg.src = 'daisy.png';
     const coinImg = new Image(); coinImg.src = 'coin_s.png';
 
-    // 修正 2：手機音效「解鎖密技」
-    let audioUnlocked = false;
+    // 修正：手機音效「暴力解鎖」機制
     function unlockAudio() {
-        if (audioUnlocked) return;
-        // 瞬間靜音播放所有音效一次，騙過瀏覽器
         Object.values(audios).forEach(audio => {
             audio.muted = true;
             audio.play().then(() => {
                 audio.pause();
+                audio.currentTime = 0;
                 audio.muted = false;
             }).catch(()=>{});
         });
-        audioUnlocked = true;
     }
 
     // --- 2. 遊戲主邏輯 ---
     function startGame() {
         if (gameState !== 'idle') return;
-        unlockAudio(); // 啟動時確保解鎖
         
-        // 強制重新播放音效
-        audios.bgm.currentTime = 0;
-        audios.shake.currentTime = 0;
+        // 點擊瞬間同時觸發聲音與動畫
+        unlockAudio();
         audios.bgm.play().catch(()=>{});
         audios.shake.play().catch(()=>{});
         
@@ -135,6 +141,7 @@
         setTimeout(() => { startReveal(); }, 2500);
     }
 
+    // 支援點擊與觸控
     hotspot.addEventListener('click', startGame);
     hotspot.addEventListener('touchstart', (e) => { 
         e.preventDefault(); 
@@ -143,11 +150,16 @@
 
     function startReveal() {
         gameState = 'revealing';
-        audios.reveal.currentTime = 0;
         audios.reveal.play().catch(()=>{});
         
         for(let i=0; i<60; i++) {
-            particles.push({ x: 225, y: 400, vx: (Math.random()-0.5)*24, vy: -Math.random()*20-10, img: Math.random()>0.5?daisyImg:coinImg, g: 0.6 });
+            particles.push({ 
+                x: 225, y: 400, 
+                vx: (Math.random()-0.5)*24, 
+                vy: -Math.random()*20-10, 
+                img: Math.random()>0.5 ? daisyImg : coinImg, 
+                g: 0.6 
+            });
         }
         animate();
     }
@@ -155,7 +167,11 @@
     function animate() {
         ctx.clearRect(0, 0, 450, 800);
         if (gameState === 'revealing' || gameState === 'finished') {
-            particles.forEach((p, i) => { p.vy += p.g; p.x += p.vx; p.y += p.vy; ctx.drawImage(p.img, p.x, p.y, 35, 35); if (p.y > 850) particles.splice(i, 1); });
+            particles.forEach((p, i) => { 
+                p.vy += p.g; p.x += p.vx; p.y += p.vy; 
+                ctx.drawImage(p.img, p.x, p.y, 35, 35); 
+                if (p.y > 850) particles.splice(i, 1); 
+            });
         }
         if (gameState === 'revealing') {
             if (zoomStep < 45) zoomStep++;
@@ -181,13 +197,19 @@
     function drawUI() {
         ctx.fillStyle = "rgba(26, 26, 26, 0.9)"; ctx.strokeStyle = "#FFD700"; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.moveTo(-25, BOX_BOTTOM_Y);
-        for (let x = -25; x <= 475; x += 5) { ctx.lineTo(x, ARC_FLATNESS * Math.pow(x - 225, 2) + BOX_TOP_PEAK); }
+        for (let x = -25; x <= 475; x += 5) { 
+            ctx.lineTo(x, ARC_FLATNESS * Math.pow(x - 225, 2) + BOX_TOP_PEAK); 
+        }
         ctx.lineTo(475, BOX_BOTTOM_Y); ctx.closePath(); ctx.fill(); ctx.stroke();
 
         const drawText = (txt, x, y, size, color) => {
             ctx.textAlign = "center"; ctx.font = `bold ${size}px "Microsoft JhengHei"`;
             ctx.fillStyle = "black";
-            for(let ox=-2; ox<=2; ox+=2) for(let oy=-2; oy<=2; oy+=2) { if(ox!==0 || oy!==0) ctx.fillText(txt, x+ox, y+oy); }
+            for(let ox=-2; ox<=2; ox+=2) {
+                for(let oy=-2; oy<=2; oy+=2) {
+                    if(ox!==0 || oy!==0) ctx.fillText(txt, x+ox, y+oy);
+                }
+            }
             ctx.fillStyle = color; ctx.fillText(txt, x, y);
         };
         drawText("【大大吉】", 225, BOX_TOP_PEAK + 80, 42, "#FFD700");
@@ -195,12 +217,18 @@
     }
 
     function updateDance() {
-        gifX += gifDir * 4; if (gifX > 370 || gifX < 80) gifDir *= -1;
+        gifX += gifDir * 4; 
+        if (gifX > 370 || gifX < 80) gifDir *= -1;
         let gy = ARC_FLATNESS * Math.pow(gifX - 225, 2) + BOX_TOP_PEAK;
-        danceGif.style.left = gifX + 'px'; danceGif.style.top = gy + 'px'; 
+        danceGif.style.left = gifX + 'px'; 
+        danceGif.style.top = gy + 'px'; 
+        
         ctx.textAlign = "center"; ctx.font = 'bold 16px "Microsoft JhengHei"';
         let tx = gifX, ty = gy - 115;
-        ctx.fillStyle = "black"; for(let ox=-2; ox<=2; ox+=2) for(let oy=-2; oy<=2; oy+=2) ctx.fillText("婕伊也來拜年~旺!旺!", tx+ox, ty+oy);
+        ctx.fillStyle = "black"; 
+        for(let ox=-2; ox<=2; ox+=2) {
+            for(let oy=-2; oy<=2; oy+=2) ctx.fillText("婕伊也來拜年~旺!旺!", tx+ox, ty+oy);
+        }
         ctx.fillStyle = "#FFD700"; ctx.fillText("婕伊也來拜年~旺!旺!", tx, ty);
     }
 

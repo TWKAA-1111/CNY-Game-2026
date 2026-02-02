@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <title>2026 馬年好運占卜 - Vicky送福</title>
     <meta property="og:title" content="快來試手氣！Vicky的馬年好運占卜">
@@ -15,33 +15,37 @@
         body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
             background-color: #000; overflow: hidden; 
-            display: flex; justify-content: center; align-items: center;
             font-family: "Microsoft JhengHei", sans-serif;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        /* 鎖定 450x800 比例容器 */
+        /* 修正 1：強力置中容器，解決跑版問題 */
         #game-container {
-            position: relative;
+            position: absolute;
+            top: 50%; left: 50%;
             width: 450px;
             height: 800px;
             background-color: #000;
             overflow: hidden;
             transform-origin: center center;
+            /* transform 會在 JS 中根據螢幕大小動態計算 */
         }
 
         #bg-img { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
         
-        /* 點擊熱區 (鎖定在蒙奇奇頭部與身體) */
+        /* 修正 3：點擊位置向右20/向下20，範圍縮小40% */
         #hotspot {
             position: absolute;
-            left: 80px; top: 150px;
-            width: 290px; height: 400px;
+            /* 原左 80+20=100px, 原上 150+20=170px */
+            left: 100px; top: 170px;
+            /* 原寬 290*0.6=174px, 原高 400*0.6=240px */
+            width: 175px; height: 240px;
             z-index: 100;
             cursor: pointer;
+            /* border: 1px solid red; (測試座標時可取消註解) */
         }
 
-        /* 跳舞小狗：腳底貼齊弧線 */
         #dance-gif {
             position: absolute;
             width: 110px; height: 110px;
@@ -49,7 +53,6 @@
             transform: translate(-50%, -100%);
         }
         
-        /* 按鈕：縮小並置底防止擋字 */
         #reset-btn {
             position: absolute;
             bottom: 30px; left: 50%;
@@ -69,16 +72,17 @@
     <img id="reset-btn" src="VICKY過年-17.png">
 </div>
 
-<audio id="bgm" src="bgm.mp3" loop></audio>
-<audio id="sfx-shake" src="shake.mp3"></audio>
-<audio id="sfx-reveal" src="reveal.mp3"></audio>
+<audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
+<audio id="sfx-shake" src="shake.mp3" preload="auto"></audio>
+<audio id="sfx-reveal" src="reveal.mp3" preload="auto"></audio>
 
 <script>
-    // --- 1. 全手機適配縮放 ---
+    // --- 1. 增強版：全手機適配與置中邏輯 ---
     function fitScreen() {
         const container = document.getElementById('game-container');
         const scale = Math.min(window.innerWidth / 450, window.innerHeight / 800);
-        container.style.transform = `scale(${scale})`;
+        // 使用 translate(-50%, -50%) 確保在手機螢幕中心
+        container.style.transform = `translate(-50%, -50%) scale(${scale})`;
     }
     window.addEventListener('resize', fitScreen);
     fitScreen();
@@ -91,20 +95,38 @@
     const resetBtn = document.getElementById('reset-btn');
     const audios = { bgm: document.getElementById('bgm'), shake: document.getElementById('sfx-shake'), reveal: document.getElementById('sfx-reveal') };
 
-    // 參數設定 (與 Python 版 1:1)
-    const BOX_TOP_PEAK = 530, BOX_BOTTOM_Y = 780, ARC_FLATNESS = 0.0008, GIF_OFFSET_Y = 105; 
+    const BOX_TOP_PEAK = 530, BOX_BOTTOM_Y = 780, ARC_FLATNESS = 0.0008; 
     let gameState = 'idle', particles = [], zoomStep = 0, gifX = 225, gifDir = 1;
 
     const monImg = new Image(); monImg.src = 'mon.png';
     const daisyImg = new Image(); daisyImg.src = 'daisy.png';
     const coinImg = new Image(); coinImg.src = 'coin_s.png';
 
+    // 修正 2：手機音效「解鎖密技」
+    let audioUnlocked = false;
+    function unlockAudio() {
+        if (audioUnlocked) return;
+        // 瞬間靜音播放所有音效一次，騙過瀏覽器
+        Object.values(audios).forEach(audio => {
+            audio.muted = true;
+            audio.play().then(() => {
+                audio.pause();
+                audio.muted = false;
+            }).catch(()=>{});
+        });
+        audioUnlocked = true;
+    }
+
     // --- 2. 遊戲主邏輯 ---
     function startGame() {
         if (gameState !== 'idle') return;
-        // 觸發音效
+        unlockAudio(); // 啟動時確保解鎖
+        
+        // 強制重新播放音效
+        audios.bgm.currentTime = 0;
+        audios.shake.currentTime = 0;
         audios.bgm.play().catch(()=>{});
-        audios.shake.play();
+        audios.shake.play().catch(()=>{});
         
         gameState = 'shaking';
         bgImg.src = 'shake.gif';
@@ -114,11 +136,16 @@
     }
 
     hotspot.addEventListener('click', startGame);
-    hotspot.addEventListener('touchstart', (e) => { e.preventDefault(); startGame(); });
+    hotspot.addEventListener('touchstart', (e) => { 
+        e.preventDefault(); 
+        startGame(); 
+    }, { passive: false });
 
     function startReveal() {
         gameState = 'revealing';
-        audios.reveal.play();
+        audios.reveal.currentTime = 0;
+        audios.reveal.play().catch(()=>{});
+        
         for(let i=0; i<60; i++) {
             particles.push({ x: 225, y: 400, vx: (Math.random()-0.5)*24, vy: -Math.random()*20-10, img: Math.random()>0.5?daisyImg:coinImg, g: 0.6 });
         }
@@ -138,7 +165,7 @@
             ctx.drawImage(monImg, (450 - w)/2, (400 - h/2), w, h);
             if (zoomStep >= 45) {
                 gameState = 'finished';
-                bgImg.src = 'idle.gif'; // 結束時切換回靜態背景
+                bgImg.src = 'idle.gif';
                 resetBtn.style.display = 'block';
                 danceGif.style.display = 'block';
             }

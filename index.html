@@ -93,38 +93,17 @@
     const daisyImg = new Image(); daisyImg.src = 'daisy.png';
     const coinImg = new Image(); coinImg.src = 'coin_s.png';
 
-    // 🔥 手機音效「預熱解鎖」機制
-    // 監聽整個網頁的第一次觸碰
-    function forceUnlockAudio() {
-        Object.values(audios).forEach(audio => {
-            audio.muted = true; // 靜音
-            audio.play().then(() => {
-                audio.pause();
-                audio.currentTime = 0;
-                audio.muted = false; // 解鎖完成
-            }).catch(e => console.log("Audio warm-up pending..."));
-        });
-        // 只要執行過一次就移除監聽
-        window.removeEventListener('touchstart', forceUnlockAudio);
-        window.removeEventListener('mousedown', forceUnlockAudio);
-    }
-    window.addEventListener('touchstart', forceUnlockAudio, { passive: true });
-    window.addEventListener('mousedown', forceUnlockAudio);
-
-    // 遊戲主邏輯
+    // 🔧 遊戲主邏輯：按下那一刻才播放 BG 音樂與 Shake
     function startGame(e) {
         if (gameState !== 'idle') return;
         
-        // 🔧 確保點擊當下，SHAKE 和 BGM 絕對優先播放
+        // 【第一步】立刻嘗試播放聲音 (這是在使用者點擊事件內發生的，所以不會被擋)
         try {
-            audios.bgm.currentTime = 0;
-            audios.shake.currentTime = 0;
-            audios.bgm.play().catch(err => console.log("BGM fail", err));
-            audios.shake.play().catch(err => console.log("Shake fail", err));
-        } catch(err) {
-            console.log("Audio context issue");
-        }
+            audios.bgm.play().catch(err => console.log("BGM Play Blocked", err));
+            audios.shake.play().catch(err => console.log("Shake Play Blocked", err));
+        } catch(e) {}
 
+        // 【第二步】切換視覺動畫
         gameState = 'shaking';
         bgImg.src = 'shake.gif';
         hotspot.style.display = 'none';
@@ -132,16 +111,15 @@
         setTimeout(startReveal, 2500);
     }
 
-    // 支援手機與網頁點擊
+    // 綁定點擊與觸控
     hotspot.addEventListener('click', startGame);
     hotspot.addEventListener('touchstart', (e) => {
-        // 在手機上，touchstart 是最早發生的事件，用它來啟動音效最穩
+        // 不需要 preventDefault，讓它直接觸發 click 邏輯
         startGame();
     }, { passive: true });
 
     function startReveal() {
         gameState = 'revealing';
-        // 因為前面預熱過，這裡的 setTimeout 播放就不會被擋
         audios.reveal.currentTime = 0; 
         audios.reveal.play().catch(()=>{});
         
@@ -163,10 +141,11 @@
         }
 
         if (gameState === 'revealing') {
+            // 變大速度放慢 (120幀 = 約2秒)
             if (zoomStep < 120) zoomStep++;
             let progress = zoomStep / 120;
             
-            // 能量抖動
+            // 能量抖動效果
             let shakePower = (1 - progress) * 12; 
             let sx = (Math.random() - 0.5) * shakePower;
             let sy = (Math.random() - 0.5) * shakePower;
@@ -174,7 +153,7 @@
             let scale = 0.2 + 1.1 * (1 - Math.pow(1 - progress, 3));
             let w = 450 * scale, h = w * (monImg.height / monImg.width);
 
-            // 超強發光
+            // 強烈發光效果
             ctx.save();
             ctx.shadowBlur = 100 * progress; 
             ctx.shadowColor = "rgba(255, 223, 0, 1.0)"; 
@@ -217,6 +196,7 @@
     }
 
     function updateDance() {
+        // 大耳狗慢速滑動
         gifX += gifDir * 2; 
         if (gifX > 370 || gifX < 80) gifDir *= -1;
         let gy = 0.0008 * Math.pow(gifX - 225, 2) + 530;

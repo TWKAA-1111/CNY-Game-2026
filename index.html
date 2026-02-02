@@ -6,7 +6,7 @@
     
     <title>2026 馬年好運占卜 - 婕伊送福</title>
     
-    <meta property="og:title" content="快來試手氣！Vicky的馬年好運占卜">
+    <meta property="og:title" content="快來試手氣！婕伊的馬年好運占卜">
     <meta property="og:description" content="點擊金色蒙奇奇，看看你馬年能抽到什麼超級好運籤！(內有可愛驚喜)">
     <meta property="og:image" content="https://twkaa-1111.github.io/CNY-Game-2026/thumbnail.jpg">
     <meta property="og:url" content="https://twkaa-1111.github.io/CNY-Game-2026/">
@@ -17,7 +17,7 @@
             margin: 0; padding: 0; width: 100%; height: 100%; 
             background-color: #000; overflow: hidden; 
             font-family: "Microsoft JhengHei", sans-serif;
-            -webkit-tap-highlight-color: transparent; /* 移除點擊藍框 */
+            -webkit-tap-highlight-color: transparent;
         }
 
         #game-container {
@@ -33,20 +33,20 @@
         #bg-img { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
         
-        /* 🔧 修正 3：點擊範圍調整 */
+        /* 🔧 修正1：大幅縮小點擊範圍 */
         #hotspot {
             position: absolute;
-            /* 往左移：原本 155 -> 改為 135 (修正右邊太多的問題) */
-            left: 135px; 
-            /* 往下壓：保持 260 (避開頭頂) */
-            top: 260px; 
-            /* 變瘦：原本 140 -> 改為 130 */
-            width: 130px; 
-            /* 高度保持涵蓋身體 */
-            height: 280px;
+            /* 左右置中微調 */
+            left: 145px; 
+            /* 往下壓，避開眼鏡與臉部：從 260 改為 320 (只點身體) */
+            top: 320px; 
+            /* 寬度適中：160 */
+            width: 160px; 
+            /* 高度大砍：從 280 改為 180 (避開下方按鈕) */
+            height: 180px;
             z-index: 100;
             cursor: pointer;
-            /* border: 2px solid red; 開發測試用，確認位置後隱藏 */
+            /* border: 2px solid rgba(255, 0, 0, 0.5);  如果想確認範圍，可以暫時把這行打開 */
         }
 
         #dance-gif {
@@ -102,43 +102,55 @@
     const daisyImg = new Image(); daisyImg.src = 'daisy.png';
     const coinImg = new Image(); coinImg.src = 'coin_s.png';
 
-    // 🔧 修正 2：音效優先觸發機制
+    // 🔧 修正2：音效與動畫分離機制 (Fail-Safe)
+    function safePlayAudio(audioName) {
+        const sound = audios[audioName];
+        if (!sound) return;
+        
+        sound.currentTime = 0;
+        // 使用 Promise catch 確保就算音樂報錯，也不會讓 JS 當掉
+        sound.play().catch(e => {
+            console.log(`Auto-play blocked for ${audioName}. User interaction needed first.`);
+        });
+    }
+
     function triggerGameInteraction(e) {
         // 防止重複觸發
-        if (e.type === 'touchend') {
-            e.preventDefault(); // 阻止產生額外的 click 事件
-        }
+        if (e && e.cancelable) e.preventDefault();
         if (gameState !== 'idle') return;
 
-        // 1. 最優先：直接播放聲音 (不等待任何邏輯)
-        const playSound = () => {
-            audios.bgm.currentTime = 0;
-            audios.shake.currentTime = 0;
-            audios.bgm.play().catch(err => console.log("BGM Play Fail:", err));
-            audios.shake.play().catch(err => console.log("Shake Play Fail:", err));
-        };
-        playSound();
-
-        // 2. 視覺變化
+        // 1. 視覺動畫：優先執行！絕對不等待音樂
         gameState = 'shaking';
         bgImg.src = 'shake.gif';
         hotspot.style.display = 'none';
-        
-        // 3. 延遲開獎
+
+        // 2. 音樂邏輯：嘗試播放，失敗就算了，不影響動畫
+        safePlayAudio('bgm');
+        safePlayAudio('shake');
+
+        // 3. 設定開獎排程
         setTimeout(() => { startReveal(); }, 2500);
     }
 
-    // 分別綁定觸控與點擊，確保手機端反應最快
+    // 🔥 全域解鎖：手指只要碰到螢幕任何地方 (包含沒點準的時候)，就先偷偷解鎖音效
+    document.body.addEventListener('touchstart', function unlock() {
+        audios.bgm.load(); 
+        audios.shake.load();
+        audios.reveal.load();
+        // 移除監聽，只做一次
+        document.body.removeEventListener('touchstart', unlock);
+    }, { once: true, passive: true });
+
+
+    // 綁定點擊與觸控
     hotspot.addEventListener('touchstart', triggerGameInteraction, { passive: false });
-    hotspot.addEventListener('click', (e) => {
-        // 如果已經被 touchstart 觸發過，這裡就不做了，避免雙重聲音
-        if(gameState === 'idle') triggerGameInteraction(e);
-    });
+    hotspot.addEventListener('mousedown', triggerGameInteraction); // 電腦版備用
 
 
     function startReveal() {
         gameState = 'revealing';
-        audios.reveal.play().catch(()=>{});
+        safePlayAudio('reveal'); // 使用安全播放
+        
         for(let i=0; i<60; i++) {
             particles.push({ x: 225, y: 400, vx: (Math.random()-0.5)*24, vy: -Math.random()*20-10, img: Math.random()>0.5?daisyImg:coinImg, g: 0.6 });
         }

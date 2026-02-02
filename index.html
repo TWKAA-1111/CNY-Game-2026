@@ -35,6 +35,16 @@
         
         /* 🔧 修正 1：座標大搬家 (往左、往低) */
         #hotspot {
+    position: absolute;
+    left: 115px; 
+    top: 360px; 
+    width: 160px; 
+    height: 180px;
+    z-index: 100;
+    cursor: pointer;
+    /* --- 加入下面這行，畫面就會出現一個紅框告訴你點擊區在哪 --- */
+    border: 3px solid red; 
+}
             position: absolute;
             /* 往左移：原本 145 -> 改為 115 */
             left: 115px; 

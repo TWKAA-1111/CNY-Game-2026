@@ -33,6 +33,7 @@
         #bg-img { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
         
+        /* 點擊範圍：左 105px (左移成功), 上 380px (往上成功) */
         #hotspot {
             position: absolute;
             left: 105px; top: 380px; width: 150px; height: 220px;
@@ -93,34 +94,34 @@
     const daisyImg = new Image(); daisyImg.src = 'daisy.png';
     const coinImg = new Image(); coinImg.src = 'coin_s.png';
 
-    // 🔧 遊戲主邏輯：按下那一刻才播放 BG 音樂與 Shake
-    function startGame(e) {
+    // 關鍵啟動邏輯：解決手機不響的問題
+    function startGame() {
         if (gameState !== 'idle') return;
         
-        // 【第一步】立刻嘗試播放聲音 (這是在使用者點擊事件內發生的，所以不會被擋)
-        try {
-            audios.bgm.play().catch(err => console.log("BGM Play Blocked", err));
-            audios.shake.play().catch(err => console.log("Shake Play Blocked", err));
-        } catch(e) {}
-
-        // 【第二步】切換視覺動畫
+        // 1. 強制播放：這部分必須最先執行
+        audios.bgm.play().catch(e => console.log("BGM Play blocked"));
+        audios.shake.play().catch(e => console.log("Shake Play blocked"));
+        
+        // 2. 切換動畫狀態
         gameState = 'shaking';
         bgImg.src = 'shake.gif';
         hotspot.style.display = 'none';
         
+        // 3. 設定開獎延遲
         setTimeout(startReveal, 2500);
     }
 
-    // 綁定點擊與觸控
-    hotspot.addEventListener('click', startGame);
+    // 綁定點擊與觸控，確保手機上第一時間感應
     hotspot.addEventListener('touchstart', (e) => {
-        // 不需要 preventDefault，讓它直接觸發 click 邏輯
+        // e.preventDefault(); // 移除此行，有助於某些手機音效觸發
         startGame();
     }, { passive: true });
+    
+    hotspot.addEventListener('click', startGame);
 
     function startReveal() {
         gameState = 'revealing';
-        audios.reveal.currentTime = 0; 
+        audios.reveal.currentTime = 0;
         audios.reveal.play().catch(()=>{});
         
         for(let i=0; i<60; i++) {
@@ -141,7 +142,7 @@
         }
 
         if (gameState === 'revealing') {
-            // 變大速度放慢 (120幀 = 約2秒)
+            // 變大速度調整：120 幀 (總開獎約 2 秒)
             if (zoomStep < 120) zoomStep++;
             let progress = zoomStep / 120;
             
@@ -153,10 +154,11 @@
             let scale = 0.2 + 1.1 * (1 - Math.pow(1 - progress, 3));
             let w = 450 * scale, h = w * (monImg.height / monImg.width);
 
-            // 強烈發光效果
+            // 超強光芒效果 (Shadow Blur 100)
             ctx.save();
             ctx.shadowBlur = 100 * progress; 
             ctx.shadowColor = "rgba(255, 223, 0, 1.0)"; 
+            
             ctx.drawImage(monImg, (450 - w)/2 + sx, (400 - h/2) + sy, w, h);
             ctx.restore();
             
@@ -196,8 +198,22 @@
     }
 
     function updateDance() {
-        // 大耳狗慢速滑動
+        // 大耳狗滑動：速度 2 (慢速版)
         gifX += gifDir * 2; 
+        if (gifX > 370 || gifX < 80) gifDir *= -1;
+        let gy = 0.0008 * Math.pow(gifX - 225, 2) + 530;
+        danceGif.style.left = gifX + 'px'; danceGif.style.top = gy + 'px'; 
+        ctx.textAlign = "center"; ctx.font = 'bold 18px "Microsoft JhengHei"';
+        let tx = gifX, ty = gy - 115;
+        ctx.fillStyle = "black"; 
+        for(let ox=-2; ox<=2; ox+=2) for(let oy=-2; oy<=2; oy+=2) { if(ox!==0 || oy!==0) ctx.fillText("婕伊也來拜年~旺!旺!", tx+ox, ty+oy); }
+        ctx.fillStyle = "#FFD700"; ctx.fillText("婕伊也來拜年~旺!旺!", tx, ty);
+    }
+
+    resetBtn.onclick = () => location.reload();
+</script>
+</body>
+</html>X += gifDir * 2; 
         if (gifX > 370 || gifX < 80) gifDir *= -1;
         let gy = 0.0008 * Math.pow(gifX - 225, 2) + 530;
         danceGif.style.left = gifX + 'px'; danceGif.style.top = gy + 'px'; 

@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <title>2026 馬年好運占卜 - 婕伊送福</title>
-    <meta property="og:title" content="快來試手氣！婕伊的馬年好運占卜">
+    
+    <meta property="og:title" content="快來試手氣！Vicky的馬年好運占卜">
     <meta property="og:description" content="點擊金色蒙奇奇，看看你馬年能抽到什麼超級好運籤！(內有可愛驚喜)">
     <meta property="og:image" content="https://twkaa-1111.github.io/CNY-Game-2026/thumbnail.jpg">
     <meta property="og:url" content="https://twkaa-1111.github.io/CNY-Game-2026/">
@@ -32,20 +33,20 @@
         #bg-img { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
         
-        /* 🔧 修正：範圍縮小，更精準鎖定蒙奇奇 */
+        /* 🔧 修正：範圍再縮小，精準打擊 */
         #hotspot {
             position: absolute;
-            /* 從原本的 left:80px 改為 125px (更置中) */
-            left: 125px; 
-            /* 從原本的 top:150px 改為 200px (避開頭頂空氣) */
-            top: 200px; 
-            /* 寬度縮小到 200px */
-            width: 200px; 
-            /* 高度縮小到 320px */
-            height: 320px;
+            /* 左右置中計算：(450 - 140) / 2 = 155 */
+            left: 155px; 
+            /* 往下壓，避開頭頂空氣：從 200 改為 260 */
+            top: 260px; 
+            /* 寬度縮窄：從 200 改為 140 (避開右邊空氣) */
+            width: 140px; 
+            /* 高度：涵蓋到腳 */
+            height: 280px;
             z-index: 100;
             cursor: pointer;
-            /* border: 1px solid red; 開發測試用，實際上傳時隱藏 */
+            /* border: 2px solid rgba(255, 0, 0, 0.5);  開發時打開這個可以看到紅框範圍，上傳時註解掉 */
         }
 
         #dance-gif {
@@ -63,8 +64,7 @@
 
 <div id="game-container">
     <img id="bg-img" src="idle.gif">
-    <div id="hotspot"></div>
-    <canvas id="gameCanvas" width="450" height="800"></canvas>
+    <div id="hotspot"></div> <canvas id="gameCanvas" width="450" height="800"></canvas>
     <img id="dance-gif" src="dance_animation.gif">
     <img id="reset-btn" src="VICKY過年-17.png">
 </div>
@@ -74,7 +74,7 @@
 <audio id="sfx-reveal" src="reveal.mp3" preload="auto"></audio>
 
 <script>
-    // --- 手機適配 ---
+    // --- 手機螢幕適配 ---
     function fitScreen() {
         const container = document.getElementById('game-container');
         const winW = window.innerWidth;
@@ -101,29 +101,54 @@
     const daisyImg = new Image(); daisyImg.src = 'daisy.png';
     const coinImg = new Image(); coinImg.src = 'coin_s.png';
 
-    // 🔧 修正：移除複雜的音效解鎖，改回直覺的「點擊即播放」
-    // 這樣可以避免直接點蒙奇奇時，解鎖邏輯跟播放邏輯打架
+    // 🔥🔥🔥 核心修正：暴力音效解鎖 (Audio Unlocker) 🔥🔥🔥
+    // 只要手指碰到螢幕任何地方，瞬間把所有音樂靜音播放一次，騙過瀏覽器
+    function unlockAllAudio() {
+        const soundList = [audios.bgm, audios.shake, audios.reveal];
+        soundList.forEach(sound => {
+            sound.muted = true; // 先靜音，以免嚇到人
+            const playPromise = sound.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    sound.pause();      // 播放成功後立刻暫停
+                    sound.currentTime = 0; // 倒帶
+                    sound.muted = false; // 解除靜音，準備正式播放
+                }).catch(error => {
+                    console.log("Audio unlock skipped:", error);
+                });
+            }
+        });
+        // 解鎖一次就夠了，移除監聽
+        document.body.removeEventListener('touchstart', unlockAllAudio);
+        document.body.removeEventListener('click', unlockAllAudio);
+    }
+
+    // 監聽「整個網頁」的觸控與點擊，確保第一時間解鎖
+    document.body.addEventListener('touchstart', unlockAllAudio, { capture: true, once: true });
+    document.body.addEventListener('click', unlockAllAudio, { capture: true, once: true });
+
+
+    // --- 遊戲邏輯 ---
     function startGame() {
         if (gameState !== 'idle') return;
         
-        // 直接播放，現代瀏覽器允許在 click 事件中直接操作音訊
-        audios.bgm.play().catch(e => console.log("BGM error:", e));
-        audios.shake.play().catch(e => console.log("Shake error:", e));
+        // 為了保險，這裡再執行一次播放 (因為已經解鎖過，這裡一定會成功)
+        audios.bgm.play().catch(e => console.log("BGM fail:", e));
+        audios.shake.play().catch(e => console.log("Shake fail:", e));
         
         gameState = 'shaking';
         bgImg.src = 'shake.gif';
-        hotspot.style.display = 'none';
+        hotspot.style.display = 'none'; // 隱藏熱區避免連點
         
         setTimeout(() => { startReveal(); }, 2500);
     }
 
-    // 綁定點擊事件
     hotspot.addEventListener('click', startGame);
-    // 綁定觸控事件 (作為備援，確保反應靈敏)
-    hotspot.addEventListener('touchstart', (e) => { 
-        e.preventDefault(); // 防止觸發兩次
+    // 使用 touchend 可以避免有些手機 touchstart 還沒觸發音效就被擋下的問題
+    hotspot.addEventListener('touchend', (e) => { 
+        e.preventDefault(); // 防止觸發 click 造成雙重判定
         startGame(); 
-    }, { passive: false });
+    });
 
     function startReveal() {
         gameState = 'revealing';

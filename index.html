@@ -79,7 +79,11 @@
     const hotspot = document.getElementById('hotspot');
     const danceGif = document.getElementById('dance-gif');
     const resetBtn = document.getElementById('reset-btn');
-    const audios = { bgm: document.getElementById('bgm'), shake: document.getElementById('sfx-shake'), reveal: document.getElementById('sfx-reveal') };
+    const audios = { 
+        bgm: document.getElementById('bgm'), 
+        shake: document.getElementById('sfx-shake'), 
+        reveal: document.getElementById('sfx-reveal') 
+    };
 
     let gameState = 'idle', particles = [], zoomStep = 0, gifX = 225, gifDir = 1;
     const canvas = document.getElementById('gameCanvas');
@@ -89,22 +93,58 @@
     const daisyImg = new Image(); daisyImg.src = 'daisy.png';
     const coinImg = new Image(); coinImg.src = 'coin_s.png';
 
+    // 🔥 手機音效「預熱解鎖」機制
+    // 監聽整個網頁的第一次觸碰
+    function forceUnlockAudio() {
+        Object.values(audios).forEach(audio => {
+            audio.muted = true; // 靜音
+            audio.play().then(() => {
+                audio.pause();
+                audio.currentTime = 0;
+                audio.muted = false; // 解鎖完成
+            }).catch(e => console.log("Audio warm-up pending..."));
+        });
+        // 只要執行過一次就移除監聽
+        window.removeEventListener('touchstart', forceUnlockAudio);
+        window.removeEventListener('mousedown', forceUnlockAudio);
+    }
+    window.addEventListener('touchstart', forceUnlockAudio, { passive: true });
+    window.addEventListener('mousedown', forceUnlockAudio);
+
+    // 遊戲主邏輯
     function startGame(e) {
         if (gameState !== 'idle') return;
-        audios.bgm.currentTime = 0; audios.shake.currentTime = 0;
-        audios.bgm.play().catch(()=>{}); audios.shake.play().catch(()=>{});
+        
+        // 🔧 確保點擊當下，SHAKE 和 BGM 絕對優先播放
+        try {
+            audios.bgm.currentTime = 0;
+            audios.shake.currentTime = 0;
+            audios.bgm.play().catch(err => console.log("BGM fail", err));
+            audios.shake.play().catch(err => console.log("Shake fail", err));
+        } catch(err) {
+            console.log("Audio context issue");
+        }
+
         gameState = 'shaking';
         bgImg.src = 'shake.gif';
         hotspot.style.display = 'none';
+        
         setTimeout(startReveal, 2500);
     }
 
-    hotspot.addEventListener('touchstart', (e) => { e.preventDefault(); startGame(); }, { passive: false });
+    // 支援手機與網頁點擊
     hotspot.addEventListener('click', startGame);
+    hotspot.addEventListener('touchstart', (e) => {
+        // 在手機上，touchstart 是最早發生的事件，用它來啟動音效最穩
+        startGame();
+    }, { passive: true });
 
     function startReveal() {
         gameState = 'revealing';
-        audios.reveal.currentTime = 0; audios.reveal.play().catch(()=>{});
+        // 因為前面預熱過，這裡的 setTimeout 播放就不會被擋
+        audios.reveal.currentTime = 0; 
+        audios.reveal.play().catch(()=>{});
+        
         for(let i=0; i<60; i++) {
             particles.push({ x: 225, y: 400, vx: (Math.random()-0.5)*24, vy: -Math.random()*20-10, img: Math.random()>0.5?daisyImg:coinImg, g: 0.6 });
         }
@@ -126,6 +166,7 @@
             if (zoomStep < 120) zoomStep++;
             let progress = zoomStep / 120;
             
+            // 能量抖動
             let shakePower = (1 - progress) * 12; 
             let sx = (Math.random() - 0.5) * shakePower;
             let sy = (Math.random() - 0.5) * shakePower;
@@ -133,13 +174,10 @@
             let scale = 0.2 + 1.1 * (1 - Math.pow(1 - progress, 3));
             let w = 450 * scale, h = w * (monImg.height / monImg.width);
 
-            // 🔧 超強發光效果
+            // 超強發光
             ctx.save();
-            // 發光範圍從 40 增加到 100
             ctx.shadowBlur = 100 * progress; 
-            // 改用更亮、不透明度更高的金黃色
             ctx.shadowColor = "rgba(255, 223, 0, 1.0)"; 
-            
             ctx.drawImage(monImg, (450 - w)/2 + sx, (400 - h/2) + sy, w, h);
             ctx.restore();
             
@@ -151,14 +189,11 @@
             }
         } else if (gameState === 'finished') {
             let w = 450 * 1.3, h = w * (monImg.height / monImg.width);
-            
-            // 結束後維持強烈的光芒感
             ctx.save();
-            ctx.shadowBlur = 50; // 靜態時光芒也變強
-            ctx.shadowColor = "rgba(255, 223, 0, 0.8)"; // 維持高亮度
+            ctx.shadowBlur = 50;
+            ctx.shadowColor = "rgba(255, 223, 0, 0.8)";
             ctx.drawImage(monImg, (450 - w)/2, (400 - h/2), w, h);
             ctx.restore();
-            
             drawUI();
             updateDance();
         }

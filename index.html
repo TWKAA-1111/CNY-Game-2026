@@ -33,20 +33,20 @@
         #bg-img { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
         
-        /* 🔧 修正1：大幅縮小點擊範圍 */
+        /* 🔧 修正 1：座標大搬家 (往左、往低) */
         #hotspot {
             position: absolute;
-            /* 左右置中微調 */
-            left: 145px; 
-            /* 往下壓，避開眼鏡與臉部：從 260 改為 320 (只點身體) */
-            top: 320px; 
-            /* 寬度適中：160 */
+            /* 往左移：原本 145 -> 改為 115 */
+            left: 115px; 
+            /* 往下移：原本 320 -> 改為 360 (鎖定肚子以下) */
+            top: 360px; 
+            /* 寬度：維持 160 */
             width: 160px; 
-            /* 高度大砍：從 280 改為 180 (避開下方按鈕) */
+            /* 高度：維持 180 */
             height: 180px;
             z-index: 100;
             cursor: pointer;
-            /* border: 2px solid rgba(255, 0, 0, 0.5);  如果想確認範圍，可以暫時把這行打開 */
+            /* border: 2px solid red; 開發用紅框，確認位置後請忽略 */
         }
 
         #dance-gif {
@@ -102,54 +102,50 @@
     const daisyImg = new Image(); daisyImg.src = 'daisy.png';
     const coinImg = new Image(); coinImg.src = 'coin_s.png';
 
-    // 🔧 修正2：音效與動畫分離機制 (Fail-Safe)
-    function safePlayAudio(audioName) {
-        const sound = audios[audioName];
-        if (!sound) return;
-        
-        sound.currentTime = 0;
-        // 使用 Promise catch 確保就算音樂報錯，也不會讓 JS 當掉
-        sound.play().catch(e => {
-            console.log(`Auto-play blocked for ${audioName}. User interaction needed first.`);
+    // 🔧 修正 2：解鎖音效 (使用最單純的一次性解鎖)
+    function unlockAudio() {
+        const sounds = [audios.bgm, audios.shake, audios.reveal];
+        sounds.forEach(s => {
+            s.muted = true;
+            s.play().then(() => {
+                s.pause();
+                s.currentTime = 0;
+                s.muted = false;
+            }).catch(()=>{});
         });
+        document.body.removeEventListener('touchstart', unlockAudio);
+        document.body.removeEventListener('click', unlockAudio);
     }
+    // 監聽任意點擊，先偷偷解鎖
+    document.body.addEventListener('touchstart', unlockAudio, { capture: true, once: true });
+    document.body.addEventListener('click', unlockAudio, { capture: true, once: true });
 
-    function triggerGameInteraction(e) {
-        // 防止重複觸發
-        if (e && e.cancelable) e.preventDefault();
+    // 🔧 修正 3：防止卡死的主邏輯
+    hotspot.onclick = function() {
         if (gameState !== 'idle') return;
 
-        // 1. 視覺動畫：優先執行！絕對不等待音樂
+        // 【視覺優先】先換圖，保證不卡住
         gameState = 'shaking';
         bgImg.src = 'shake.gif';
         hotspot.style.display = 'none';
 
-        // 2. 音樂邏輯：嘗試播放，失敗就算了，不影響動畫
-        safePlayAudio('bgm');
-        safePlayAudio('shake');
+        // 【再播聲音】就算聲音報錯，也不會影響上面的換圖
+        try {
+            audios.bgm.currentTime = 0;
+            audios.shake.currentTime = 0;
+            audios.bgm.play().catch(e => console.log("BGM auto-play blocked"));
+            audios.shake.play().catch(e => console.log("Shake auto-play blocked"));
+        } catch (e) {
+            console.log("Audio system error");
+        }
 
-        // 3. 設定開獎排程
+        // 設定開獎時間
         setTimeout(() => { startReveal(); }, 2500);
-    }
-
-    // 🔥 全域解鎖：手指只要碰到螢幕任何地方 (包含沒點準的時候)，就先偷偷解鎖音效
-    document.body.addEventListener('touchstart', function unlock() {
-        audios.bgm.load(); 
-        audios.shake.load();
-        audios.reveal.load();
-        // 移除監聽，只做一次
-        document.body.removeEventListener('touchstart', unlock);
-    }, { once: true, passive: true });
-
-
-    // 綁定點擊與觸控
-    hotspot.addEventListener('touchstart', triggerGameInteraction, { passive: false });
-    hotspot.addEventListener('mousedown', triggerGameInteraction); // 電腦版備用
-
+    };
 
     function startReveal() {
         gameState = 'revealing';
-        safePlayAudio('reveal'); // 使用安全播放
+        try { audios.reveal.play().catch(()=>{}); } catch(e){}
         
         for(let i=0; i<60; i++) {
             particles.push({ x: 225, y: 400, vx: (Math.random()-0.5)*24, vy: -Math.random()*20-10, img: Math.random()>0.5?daisyImg:coinImg, g: 0.6 });

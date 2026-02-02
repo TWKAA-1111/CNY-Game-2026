@@ -7,8 +7,8 @@
     <title>2026 馬年好運占卜 - Vicky送福</title>
     
     <meta property="og:title" content="快來試手氣！Vicky的馬年好運占卜">
-    <meta property="og:description" content="點擊金色蒙奇奇，看看你馬年能抽到什麼超級好運籤！(內有可愛驚喜)">
-    <meta property="og:image" content="https://twkaa-1111.github.io/CNY-Game-2026/thumbnail.jpg">
+    <meta property="og:description" content="點擊金色蒙奇奇，像雛菊般綻放水瓶座的靈感魅力！">
+    <meta property="og:image" content="https://twkaa-1111.github.io/CNY-Game-2026/thumbnail.jpg?v=4">
     <meta property="og:url" content="https://twkaa-1111.github.io/CNY-Game-2026/">
     <meta property="og:type" content="website">
 
@@ -20,7 +20,6 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* 🔧 封面與遊戲容器：尺寸與縮放邏輯完全對齊 */
         #cover-page {
             position: absolute; top: 50%; left: 50%;
             width: 450px; height: 800px;
@@ -74,8 +73,10 @@
 <div id="cover-page" onclick="startApp()">
     <img id="cover-img" src="cover.jpg"> 
     <div id="start-prompt-container">
-        <img src="daisy.png" class="deco-icon"> <div id="start-prompt">點擊開啟 Vicky 馬年好運</div>
-        <img src="coin_s.png" class="deco-icon"> </div>
+        <img src="daisy.png" class="deco-icon">
+        <div id="start-prompt">點擊開啟 Vicky 馬年好運</div>
+        <img src="coin_s.png" class="deco-icon">
+    </div>
 </div>
 
 <div id="game-container">
@@ -101,19 +102,23 @@
     window.addEventListener('resize', fitScreen);
     setTimeout(fitScreen, 100); 
 
-    const audios = { 
-        bgm: document.getElementById('bgm'), 
-        shake: document.getElementById('sfx-shake'), 
-        reveal: document.getElementById('sfx-reveal') 
-    };
+    const audios = { bgm: document.getElementById('bgm'), shake: document.getElementById('sfx-shake'), reveal: document.getElementById('sfx-reveal') };
     
-    // 🔧 音量平衡：BGM 再調降 20%，目前為原音量的 30% (0.3)
+    // 音量與資源預載
     audios.bgm.volume = 0.3;
-    audios.shake.volume = 1.0; 
+    audios.shake.volume = 1.0;
     audios.reveal.volume = 1.0;
 
-    const coverPage = document.getElementById('cover-page');
-    let gameState = 'idle', particles = [], zoomStep = 0, gifX = 225, gifDir = 1;
+    // 🔧 吉祥話修正：吉系列標題 + 水瓶雛菊風格
+    const luckyPhrases = [
+        { title: "【大大吉】", content: "Vicky 送福，馬到成功好運來！" },
+        { title: "【超級吉】", content: "一馬當先，馬力全開發大財！" },
+        { title: "【開運吉】", content: "龍馬精神，馬上有錢喜洋洋！" },
+        { title: "【福星吉】", content: "萬事勝意，馬到功成步步高！" },
+        { title: "【好運吉】", content: "福氣滿滿，馬年大吉行大運！" }
+    ];
+
+    let currentLuckyIndex = 0, gameState = 'idle', particles = [], zoomStep = 0, gifX = 225, gifDir = 1;
     const ctx = document.getElementById('gameCanvas').getContext('2d');
     const monImg = new Image(); monImg.src = 'mon.png';
     const daisyImg = new Image(); daisyImg.src = 'daisy.png';
@@ -121,12 +126,13 @@
 
     function startApp() {
         audios.bgm.play().catch(() => {});
-        coverPage.style.opacity = '0';
-        setTimeout(() => { coverPage.style.display = 'none'; }, 800);
+        document.getElementById('cover-page').style.opacity = '0';
+        setTimeout(() => { document.getElementById('cover-page').style.display = 'none'; }, 800);
     }
 
     function startGame() {
         if (gameState !== 'idle') return;
+        currentLuckyIndex = Math.floor(Math.random() * luckyPhrases.length);
         audios.shake.currentTime = 0; audios.shake.play();
         gameState = 'shaking';
         document.getElementById('bg-img').src = 'shake.gif';
@@ -135,7 +141,6 @@
     }
 
     document.getElementById('hotspot').onclick = startGame;
-    document.getElementById('hotspot').addEventListener('touchstart', startGame, { passive: true });
 
     function startReveal() {
         gameState = 'revealing';
@@ -147,11 +152,7 @@
     function animate() {
         ctx.clearRect(0, 0, 450, 800);
         if (gameState === 'revealing' || gameState === 'finished') {
-            particles.forEach((p, i) => { 
-                p.vy += p.g; p.x += p.vx; p.y += p.vy; 
-                ctx.drawImage(p.img, p.x, p.y, 35, 35); 
-                if (p.y > 850) particles.splice(i, 1); 
-            });
+            particles.forEach((p, i) => { p.vy += p.g; p.x += p.vx; p.y += p.vy; ctx.drawImage(p.img, p.x, p.y, 35, 35); if (p.y > 850) particles.splice(i, 1); });
         }
         if (gameState === 'revealing') {
             if (zoomStep < 120) zoomStep++;
@@ -190,8 +191,9 @@
             for(let ox=-2; ox<=2; ox+=2) for(let oy=-2; oy<=2; oy+=2) if(ox!==0||oy!==0) ctx.fillText(txt, x+ox, y+oy);
             ctx.fillStyle = color; ctx.fillText(txt, x, y);
         };
-        drawText("【大大吉】", 225, 610, 42, "#FFD700");
-        drawText("婕伊送福，馬年好運旺旺來！", 225, 660, 20, "white");
+        const res = luckyPhrases[currentLuckyIndex];
+        drawText(res.title, 225, 610, 42, "#FFD700");
+        drawText(res.content, 225, 660, 20, "white");
     }
 
     function updateDance() {
@@ -201,8 +203,10 @@
         document.getElementById('dance-gif').style.top = gy + 'px';
         ctx.textAlign = "center"; ctx.font = 'bold 18px "Microsoft JhengHei"';
         let tx = gifX, ty = gy - 115;
-        ctx.fillStyle = "black"; for(let ox=-2; ox<=2; ox+=2) for(let oy=-2; oy<=2; oy+=2) if(ox!==0||oy!==0) ctx.fillText("婕伊也來拜年~旺!旺!", tx+ox, ty+oy);
-        ctx.fillStyle = "#FFD700"; ctx.fillText("婕伊也來拜年~旺!旺!", tx, ty);
+        ctx.fillStyle = "black"; 
+        for(let ox=-2; ox<=2; ox+=2) for(let oy=-2; oy<=2; oy+=2) if(ox!==0||oy!==0) ctx.fillText("婕伊也來拜年~旺!旺!", tx+ox, ty+oy);
+        ctx.fillStyle = "#FFD700"; 
+        ctx.fillText("婕伊也來拜年~旺!旺!", tx, ty);
     }
 
     document.getElementById('reset-btn').onclick = () => location.reload();

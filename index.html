@@ -12,36 +12,40 @@
     <meta property="og:type" content="website">
 
     <style>
-        /* 修正 1：移除 Flex 置中，改用絕對定位的準備 */
         body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
             background-color: #000; overflow: hidden; 
-            /* display: flex; <-- 移除這行 */
-            /* justify-content: center; align-items: center; <-- 移除這行 */
             font-family: "Microsoft JhengHei", sans-serif;
-             /* 避免手機點擊出現高亮色塊 */
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* 修正 2：改用絕對定位強力置中 */
         #game-container {
-            position: absolute; /* 絕對定位 */
-            top: 50%; left: 50%; /* 定位到畫面中心點 */
-            /* transform 將由 JS 動態設定，包含 translate(-50%, -50%) 和 scale */
-            width: 450px;
-            height: 800px;
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 450px; height: 800px;
             background-color: #000;
             overflow: hidden;
             transform-origin: center center;
-            box-shadow: 0 0 30px rgba(0,0,0,0.8); /* 加個陰影更有質感 */
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
         }
 
         #bg-img { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
         canvas { position: absolute; top: 0; left: 0; z-index: 5; pointer-events: none; }
         
+        /* 🔧 修正：範圍縮小，更精準鎖定蒙奇奇 */
         #hotspot {
-            position: absolute; left: 80px; top: 150px; width: 290px; height: 400px;
-            z-index: 100; cursor: pointer;
+            position: absolute;
+            /* 從原本的 left:80px 改為 125px (更置中) */
+            left: 125px; 
+            /* 從原本的 top:150px 改為 200px (避開頭頂空氣) */
+            top: 200px; 
+            /* 寬度縮小到 200px */
+            width: 200px; 
+            /* 高度縮小到 320px */
+            height: 320px;
+            z-index: 100;
+            cursor: pointer;
+            /* border: 1px solid red; 開發測試用，實際上傳時隱藏 */
         }
 
         #dance-gif {
@@ -70,24 +74,18 @@
 <audio id="sfx-reveal" src="reveal.mp3" preload="auto"></audio>
 
 <script>
-    // --- 修正 4：更新縮放邏輯，配合絕對定位 ---
+    // --- 手機適配 ---
     function fitScreen() {
         const container = document.getElementById('game-container');
-        // 使用 window.innerWidth/Height 獲取視窗大小
         const winW = window.innerWidth;
         const winH = window.innerHeight;
-        // 計算縮放比例 (維持 450x800 的長寬比，找出能完整塞進畫面的最大比例)
         const scale = Math.min(winW / 450, winH / 800);
-        
-        // 關鍵：同時應用置中位移 (translate) 和縮放 (scale)
         container.style.transform = `translate(-50%, -50%) scale(${scale})`;
     }
-    // 監聽螢幕旋轉或大小改變
     window.addEventListener('resize', fitScreen);
-    window.addEventListener('orientationchange', () => { setTimeout(fitScreen, 100); }); // 延遲一下等待旋轉完成
-    fitScreen(); // 初始化執行
+    window.addEventListener('orientationchange', () => { setTimeout(fitScreen, 100); });
+    fitScreen();
 
-    // --- 變數定義 ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     const bgImg = document.getElementById('bg-img');
@@ -96,49 +94,21 @@
     const resetBtn = document.getElementById('reset-btn');
     const audios = { bgm: document.getElementById('bgm'), shake: document.getElementById('sfx-shake'), reveal: document.getElementById('sfx-reveal') };
 
-    const BOX_TOP_PEAK = 530, BOX_BOTTOM_Y = 780, ARC_FLATNESS = 0.0008, GIF_OFFSET_Y = 105; 
+    const BOX_TOP_PEAK = 530, BOX_BOTTOM_Y = 780, ARC_FLATNESS = 0.0008; 
     let gameState = 'idle', particles = [], zoomStep = 0, gifX = 225, gifDir = 1;
 
     const monImg = new Image(); monImg.src = 'mon.png';
     const daisyImg = new Image(); daisyImg.src = 'daisy.png';
     const coinImg = new Image(); coinImg.src = 'coin_s.png';
 
-    // --- 修正 5：強力音效解鎖機制 (Mobile Audio Unlock) ---
-    let audioUnlocked = false;
-    function unlockAudioByTouch() {
-        if (audioUnlocked) return;
-        
-        // 嘗試播放並立即暫停 Shake 音效，以解鎖音訊環境
-        audios.shake.play().then(() => {
-            audios.shake.pause();
-            audios.shake.currentTime = 0;
-        }).catch((e) => { console.log("Audio unlock failed (might already be unlocked):", e); });
-
-        // 嘗試播放 BGM 並暫停
-        audios.bgm.play().then(() => {
-             audios.bgm.pause();
-        }).catch(()=>{});
-
-        audioUnlocked = true;
-        // 解鎖成功後移除監聽器
-        document.body.removeEventListener('touchstart', unlockAudioByTouch);
-        document.body.removeEventListener('click', unlockAudioByTouch);
-    }
-    // 監聽整個頁面的第一次觸控或點擊
-    document.body.addEventListener('touchstart', unlockAudioByTouch, { once: true, passive: true });
-    document.body.addEventListener('click', unlockAudioByTouch, { once: true });
-
-
-    // --- 遊戲主邏輯 ---
+    // 🔧 修正：移除複雜的音效解鎖，改回直覺的「點擊即播放」
+    // 這樣可以避免直接點蒙奇奇時，解鎖邏輯跟播放邏輯打架
     function startGame() {
         if (gameState !== 'idle') return;
         
-        // 確保音效已解鎖 (雙重保險)
-        unlockAudioByTouch();
-
-        // 正式播放
-        audios.bgm.play().catch(e => console.error("BGM play failed:", e));
-        audios.shake.play().catch(e => console.error("Shake play failed:", e));
+        // 直接播放，現代瀏覽器允許在 click 事件中直接操作音訊
+        audios.bgm.play().catch(e => console.log("BGM error:", e));
+        audios.shake.play().catch(e => console.log("Shake error:", e));
         
         gameState = 'shaking';
         bgImg.src = 'shake.gif';
@@ -147,14 +117,13 @@
         setTimeout(() => { startReveal(); }, 2500);
     }
 
-    // 使用標準 click 事件，移除 preventDefault 以提高相容性
+    // 綁定點擊事件
     hotspot.addEventListener('click', startGame);
-    // touchstart 作為備援，確保觸控靈敏
+    // 綁定觸控事件 (作為備援，確保反應靈敏)
     hotspot.addEventListener('touchstart', (e) => { 
-        // 這裡不加 preventDefault，讓它自然觸發 click，或由上面的 unlockAudioByTouch 處理
-        if (gameState === 'idle') startGame();
-    }, { passive: true });
-
+        e.preventDefault(); // 防止觸發兩次
+        startGame(); 
+    }, { passive: false });
 
     function startReveal() {
         gameState = 'revealing';
